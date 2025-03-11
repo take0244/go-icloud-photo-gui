@@ -1,0 +1,15 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "frontend:dir": "infrastructure/ui/frontend",
+  "build:dir": "infrastructure/ui/build",
+  "name": "iCloud_Photos_Downloader",
+  "outputfilename": "iCloud_Photos_Downloader",
+  "frontend:install": "npm install",
+  "frontend:build": "npm run build",
+  "frontend:dev:watcher": "npm run dev",
+  "frontend:dev:serverUrl": "auto",
+  "author": {
+    "name": "take0244",
+    "email": "take0244@gmail.com"
+  }
+}
