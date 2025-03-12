@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Code2fa } from "@/wailsjs/go/ui/App";
-
+import { useAlert } from 'react-alert';
 
 const inputStyle = {
   width: "100%",
@@ -17,12 +17,10 @@ const inputStyle = {
 const buttonStyle = {
   width: "100%",
   padding: "10px",
-  backgroundColor: "#007bff",
   color: "white",
   fontWeight: "bold",
   borderRadius: "8px",
   border: "none",
-  cursor: "pointer",
   transition: "background 0.3s",
 };
 
@@ -47,14 +45,20 @@ const cardStyle = {
 };
 export const Code2Fa = ({ setPage }) => {
   const [twoFactorCode, setTwoFactorCode] = useState("");
-
+  const [isLoading, setIsLoading] = useState(false);
+  const alert = useAlert();
   const handleVerifyTwoFactor = () => {
     Code2fa(twoFactorCode)
-      .then(() => {
-        setPage("photos");
-      })
-      .catch(() => {
-        setPage("login");
+      .then((res) => {
+        setIsLoading(true)
+        if (JSON.parse(res)) {
+          setPage("photos");
+        } else {
+          alert.show("認証コードが違います。やり直してね。")
+          setPage("login");
+        }
+      }).finally(() => {
+        setIsLoading(false);
       });
   };
 
@@ -76,7 +80,12 @@ export const Code2Fa = ({ setPage }) => {
         />
         <button
           onClick={handleVerifyTwoFactor}
-          style={buttonStyle}
+          style={{...buttonStyle,
+            backgroundColor: isLoading ? "#555" : "#007bff",
+            cursor: isLoading ? "not-allowed" : "pointer",
+            opacity: isLoading ? 0.2 : 1,
+          }}
+          disabled={isLoading}
           onMouseOver={(e) => (e.target.style.backgroundColor = "#0056b3")}
           onMouseOut={(e) => (e.target.style.backgroundColor = "#007bff")}
         >

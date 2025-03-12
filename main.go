@@ -10,8 +10,16 @@ import (
 )
 
 func main() {
+	homeDir, _ := os.UserHomeDir()
+	logDir := filepath.Join(homeDir, ".logs2")
+
+	byts, err := os.ReadFile(filepath.Join(logDir, "OAUTH_CLIENT_ID"))
+	if err != nil {
+		panic(err)
+	}
 	icloud := ificloud.NewICloud(
-		ificloud.MetaDirPathOption(filepath.Join(os.TempDir(), "goicloud")),
+		string(byts),
+		ificloud.MetaDirPathOption(logDir),
 	)
 	ucase := usecase.NewUseCase(icloud)
 	ui.Run(ucase)

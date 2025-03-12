@@ -31,9 +31,9 @@ func Run(ucase usecase.UseCase) {
 	}
 
 	err := wails.Run(&options.App{
-		Title:  "ui",
-		Width:  1024,
-		Height: 768,
+		Title:  "iCloud Photos Downloader",
+		Width:  1024 / 2,
+		Height: 768 / 2,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
@@ -58,7 +58,7 @@ func (a *App) LoginICloud(username, password string) string {
 	result, err := a.ucase.ICloudService().Login(username, password)
 	if err != nil {
 		aop.Logger().Error(err.Error())
-		return util.MustJsonString(usecase.LoginResult{Required2fa: false})
+		return util.MustJsonString(map[string]any{"error": true})
 	}
 
 	return util.MustJsonString(result)
@@ -67,7 +67,7 @@ func (a *App) LoginICloud(username, password string) string {
 func (a *App) Code2fa(code string) string {
 	if err := a.ucase.ICloudService().Code2fa(code); err != nil {
 		aop.Logger().Error(err.Error())
-		os.Exit(0)
+		return util.MustJsonString(false)
 	}
 
 	return util.MustJsonString(true)

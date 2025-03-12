@@ -47,14 +47,15 @@ export const Photos = ({ setPage }) => {
         <button
           style={{
             width: "100%",
-            backgroundColor: "#007bff",
             color: "white",
             fontWeight: "bold",
             padding: "10px",
             borderRadius: "8px",
             border: "none",
-            cursor: "pointer",
-            transition: "background 0.3s"
+            transition: "background 0.3s",
+            backgroundColor: isLoading ? "#555" : "#007bff",
+            cursor: isLoading ? "not-allowed" : "pointer",
+            opacity: isLoading ? 0.2 : 1,
           }}
           onClick={selectDirectory}
           disabled={isLoading}

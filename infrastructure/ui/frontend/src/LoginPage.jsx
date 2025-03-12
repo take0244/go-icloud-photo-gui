@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from "react";
-import { LoginICloud, Code2fa } from "@/wailsjs/go/ui/App";
+import { LoginICloud } from "@/wailsjs/go/ui/App";
+import { useAlert } from 'react-alert';
 
 function useStorageState(key, initialValue) {
   const [state, _setState] = useState(() => {
@@ -68,6 +69,7 @@ const cardStyle = {
 
 // ログイン画面
 export const Login = ({ setPage }) => {
+  const alert = useAlert();
   const [username, setUsername] = useStorageState("username", "");
   const [password, setPassword] = useStorageState("password", "");
   const passwordRef = React.useRef(null);
@@ -75,11 +77,18 @@ export const Login = ({ setPage }) => {
   const handleLogin = () => {
     LoginICloud(username, password)
       .then((response) => {
-        if (JSON.parse(response).Required2fa) {
-          setPage("code2fa");
-        } else {
-          setPage("photos");
+        const resp = JSON.parse(response)
+        if (resp?.error) {
+          alert.error('ユーザー名かパスワードが違いますわ');
+          return;
         }
+
+        if (resp?.Required2fa) {
+          setPage("code2fa");
+          return;
+        }
+
+        setPage("photos");
       })
       .catch((error) => console.error("ログインエラー:", error));
   };

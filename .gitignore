@@ -2,3 +2,4 @@
 /infrastructure/ui/frontend/dist
 *.DS_Store
 /infrastructure/ui/build/bin
+/infrastructure/ui/node_modules

@@ -36,11 +36,11 @@ func MetaDirPathOption(cookiePath string) ifICloudOption {
 	}
 }
 
-func NewICloud(optArgs ...ifICloudOption) usecase.ICloudService {
-	return newICloud(optArgs...)
+func NewICloud(oauthClientId string, optArgs ...ifICloudOption) usecase.ICloudService {
+	return newICloud(oauthClientId, optArgs...)
 }
 
-func newICloud(optArgs ...ifICloudOption) *ifICloud {
+func newICloud(oauthClientId string, optArgs ...ifICloudOption) *ifICloud {
 	options := ifICloudOptions{metaDir: "./cache"}
 	for _, opt := range optArgs {
 		opt(&options)
@@ -50,7 +50,7 @@ func newICloud(optArgs ...ifICloudOption) *ifICloud {
 
 	httpClient := util.HttpClientWithJarCookie()
 	instance := &ifICloud{
-		authService:  &authService{httpClient: httpClient},
+		authService:  &authService{httpClient: httpClient, oauthClientId: oauthClientId},
 		photoService: &photoService{httpClient: httpClient},
 		options:      options,
 		codeCh:       make(chan string, 1),

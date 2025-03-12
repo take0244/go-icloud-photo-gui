@@ -10,13 +10,10 @@ import (
 	"github.com/take0244/go-icloud-photo-gui/util"
 )
 
-var (
-	oauthClientId = "d39ba9916b7251055b22c7f910e2ea796ee65e98b2ddecea8f5dde8d9d1a815d"
-)
-
 type (
 	authService struct {
-		httpClient *http.Client
+		httpClient    *http.Client
+		oauthClientId string
 	}
 	SigninResponse struct {
 		SessionId, SessionToken, Scnt, AccountCountry, TrustToken string
@@ -43,14 +40,14 @@ func (a *authService) signin(clientId, username, password string) (*SigninRespon
 		map[string]string{
 			"Accept":                           "*/*",
 			"Content-Type":                     "application/json",
-			"X-Apple-OAuth-Client-Id":          oauthClientId,
+			"X-Apple-OAuth-Client-Id":          a.oauthClientId,
 			"X-Apple-OAuth-Client-Type":        "firstPartyAuth",
 			"X-Apple-OAuth-Redirect-URI":       "https://www.icloud.com",
 			"X-Apple-OAuth-Require-Grant-Code": "true",
 			"X-Apple-OAuth-Response-Mode":      "web_message",
 			"X-Apple-OAuth-Response-Type":      "code",
 			"X-Apple-OAuth-State":              clientId,
-			"X-Apple-Widget-Key":               oauthClientId,
+			"X-Apple-Widget-Key":               a.oauthClientId,
 		},
 	)
 
@@ -58,7 +55,6 @@ func (a *authService) signin(clientId, username, password string) (*SigninRespon
 	if err != nil {
 		return nil, fmt.Errorf("failed to signin request: %w", err)
 	}
-
 	if !util.HttpCheck2XX(resp) {
 		return nil, errors.New("invalid request")
 	}
@@ -129,14 +125,14 @@ func (a *authService) login2fa(clientId, code string, signinResp *SigninResponse
 		map[string]string{
 			"Accept":                           "*/*",
 			"Content-Type":                     "application/json",
-			"X-Apple-OAuth-Client-Id":          oauthClientId,
+			"X-Apple-OAuth-Client-Id":          a.oauthClientId,
 			"X-Apple-OAuth-Client-Type":        "firstPartyAuth",
 			"X-Apple-OAuth-Redirect-URI":       "https://www.icloud.com",
 			"X-Apple-OAuth-Require-Grant-Code": "true",
 			"X-Apple-OAuth-Response-Mode":      "web_message",
 			"X-Apple-OAuth-Response-Type":      "code",
 			"X-Apple-OAuth-State":              clientId,
-			"X-Apple-Widget-Key":               oauthClientId,
+			"X-Apple-Widget-Key":               a.oauthClientId,
 			"scnt":                             signinResp.Scnt,
 			"X-Apple-ID-Session-Id":            signinResp.SessionId,
 		},
@@ -157,14 +153,14 @@ func (a *authService) trustSession(clientId string, signinResp *SigninResponse) 
 		map[string]string{
 			"Accept":                           "*/*",
 			"Content-Type":                     "application/json",
-			"X-Apple-OAuth-Client-Id":          oauthClientId,
+			"X-Apple-OAuth-Client-Id":          a.oauthClientId,
 			"X-Apple-OAuth-Client-Type":        "firstPartyAuth",
 			"X-Apple-OAuth-Redirect-URI":       "https://www.icloud.com",
 			"X-Apple-OAuth-Require-Grant-Code": "true",
 			"X-Apple-OAuth-Response-Mode":      "web_message",
 			"X-Apple-OAuth-Response-Type":      "code",
 			"X-Apple-OAuth-State":              clientId,
-			"X-Apple-Widget-Key":               oauthClientId,
+			"X-Apple-Widget-Key":               a.oauthClientId,
 			"scnt":                             signinResp.Scnt,
 			"X-Apple-ID-Session-Id":            signinResp.SessionId,
 		},
