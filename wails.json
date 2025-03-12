@@ -4,7 +4,7 @@
   "build:dir": "infrastructure/ui/build",
   "name": "iCloud_Photos_Downloader",
   "outputfilename": "iCloud_Photos_Downloader",
-  "frontend:install": "npm install",
+  "frontend:install": "npm install --legacy-peer-deps",
   "frontend:build": "npm run build",
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",

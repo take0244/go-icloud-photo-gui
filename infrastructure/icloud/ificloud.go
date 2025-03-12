@@ -91,7 +91,7 @@ func (i *ifICloud) Clear() {
 	if err := util.DeleteFiles(i.options.metaDir); err != nil {
 		aop.Logger().Error(err.Error())
 	}
-	newInstance := newICloud()
+	newInstance := newICloud(i.authService.oauthClientId)
 	newInstance.options = i.options
 	i = newInstance
 }
