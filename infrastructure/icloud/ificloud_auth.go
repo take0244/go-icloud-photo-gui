@@ -1,4 +1,4 @@
-package ificloud
+package infraicloud
 
 import (
 	"bytes"
@@ -201,10 +201,4 @@ func (a *authService) validateCookie() error {
 	}
 
 	return nil
-}
-
-func ClearMeta(dir string) {
-	if err := util.DeleteFiles(dir); err != nil {
-		panic(err)
-	}
 }

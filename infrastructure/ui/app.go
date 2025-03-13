@@ -1,4 +1,4 @@
-package ui
+package infraui
 
 import (
 	"context"
@@ -24,7 +24,7 @@ type App struct {
 	ucase usecase.UseCase
 }
 
-func Run(ucase usecase.UseCase) {
+func Run(ucase usecase.UseCase) error {
 	app := &App{
 		ucase: ucase,
 		ctx:   context.Background(),
@@ -44,9 +44,7 @@ func Run(ucase usecase.UseCase) {
 		},
 	})
 
-	if err != nil {
-		println("Error:", err.Error())
-	}
+	return err
 }
 
 func (a *App) startup(ctx context.Context) {

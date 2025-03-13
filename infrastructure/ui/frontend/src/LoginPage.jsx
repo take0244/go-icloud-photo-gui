@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from "react";
-import { LoginICloud } from "@/wailsjs/go/ui/App";
+import { LoginICloud } from "@/wailsjs/go/infraui/App";
 import { useAlert } from 'react-alert';
 
 function useStorageState(key, initialValue) {

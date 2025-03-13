@@ -1,4 +1,4 @@
-package ificloud
+package infraicloud
 
 import (
 	"fmt"
@@ -41,7 +41,7 @@ func NewICloud(oauthClientId string, optArgs ...ifICloudOption) usecase.ICloudSe
 }
 
 func newICloud(oauthClientId string, optArgs ...ifICloudOption) *ifICloud {
-	options := ifICloudOptions{metaDir: "./cache"}
+	options := ifICloudOptions{metaDir: filepath.Join(os.TempDir(), "goicloudgui")}
 	for _, opt := range optArgs {
 		opt(&options)
 	}
@@ -88,7 +88,7 @@ func (i *ifICloud) Code2fa(code string) error {
 }
 
 func (i *ifICloud) Clear() {
-	if err := util.DeleteFiles(i.options.metaDir); err != nil {
+	if err := i.clearMeta(); err != nil {
 		aop.Logger().Error(err.Error())
 	}
 	newInstance := newICloud(i.authService.oauthClientId)
@@ -104,7 +104,7 @@ func (i *ifICloud) Login(accountName, password string) (*usecase.LoginResult, er
 		return &usecase.LoginResult{Required2fa: false}, nil
 	} else {
 		aop.Logger().Debug("ifICloud.Login.DeleteFiles")
-		util.DeleteFiles(i.options.metaDir)
+		i.clearMeta()
 	}
 
 	i.appleId = accountName
@@ -134,6 +134,18 @@ func (i *ifICloud) Login(accountName, password string) (*usecase.LoginResult, er
 	}
 
 	return &usecase.LoginResult{Required2fa: accountResp.Required2fa}, nil
+}
+
+func (i *ifICloud) clearMeta() error {
+	cookiePath := filepath.Join(i.options.metaDir, "cookie.json")
+	metaDataPath := filepath.Join(i.options.metaDir, "meta.json")
+	if err := os.Remove(cookiePath); err != nil {
+		return err
+	}
+	if err := os.Remove(metaDataPath); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (i *ifICloud) saveMeta(config ifICloudConfigFile) {

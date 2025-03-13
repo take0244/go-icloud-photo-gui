@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Code2fa } from "@/wailsjs/go/ui/App";
+import { Code2fa } from "@/wailsjs/go/infraui/App";
 import { useAlert } from 'react-alert';
 
 const inputStyle = {

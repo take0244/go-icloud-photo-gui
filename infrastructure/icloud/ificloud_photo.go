@@ -1,4 +1,4 @@
-package ificloud
+package infraicloud
 
 import (
 	"bytes"

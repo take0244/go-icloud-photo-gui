@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { SelectDirectory, AllDownloadPhotos, Cancel } from "@/wailsjs/go/ui/App";
+import { SelectDirectory, AllDownloadPhotos, Cancel } from "@/wailsjs/go/infraui/App";
 
 export const Photos = ({ setPage }) => {
   const [selectedDir, setSelectedDir] = useState("");
