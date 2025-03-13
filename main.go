@@ -31,6 +31,7 @@ var (
 	logFile    = filepath.Join(appDir, "log.txt")
 	configFile = filepath.Join(appDir, "app_config.json")
 	readmeFile = filepath.Join(appDir, "README.md")
+	config     ConfigFile
 )
 
 func init() {
@@ -38,15 +39,6 @@ func init() {
 		panic(err)
 	}
 
-	file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0777)
-	if err != nil {
-		panic(err)
-	}
-
-	aop.InitLogger(io.Writer(file), slog.LevelError)
-}
-
-func main() {
 	_, err := os.Stat(configFile)
 	if os.IsNotExist(err) {
 		if err = os.WriteFile(configFile, util.MustMarshal(ConfigFile{OauthClientId: "changeit", MaxParallel: 1}), 0777); err != nil {
@@ -68,9 +60,7 @@ func main() {
 		panic(err)
 	}
 
-	var config ConfigFile
-	err = json.Unmarshal(configByts, &config)
-	if err != nil {
+	if err = json.Unmarshal(configByts, &config); err != nil {
 		panic(err)
 
 	}
@@ -81,6 +71,16 @@ func main() {
 		os.Exit(0)
 		return
 	}
+
+	file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0777)
+	if err != nil {
+		panic(err)
+	}
+
+	aop.InitLogger(io.Writer(file), slog.LevelError)
+}
+
+func main() {
 
 	icloud := infraicloud.NewICloud(
 		config.OauthClientId,
