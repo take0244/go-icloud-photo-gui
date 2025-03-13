@@ -3,17 +3,20 @@ package infraicloud
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 
 	"github.com/take0244/go-icloud-photo-gui/aop"
 	"github.com/take0244/go-icloud-photo-gui/util"
+	"golang.org/x/sync/errgroup"
 )
 
 type (
 	photoService struct {
 		webServiceSckdatabasewsUrl string
 		httpClient                 *http.Client
+		parallelCnt                int
 	}
 	Photo struct {
 		responseRecord
@@ -131,6 +134,7 @@ func (p *photoService) GetAllPhotos() []Photo {
 }
 
 func (p *photoService) DownloadAllPhotos(dir string) error {
+	parallel := make(chan int, int(math.Max(float64(p.parallelCnt), 1)))
 	aop.Logger().Debug("photoService.DownloadAllPhotos")
 	photos := p.GetAllPhotos()
 	var allPhotoNames []string
@@ -146,48 +150,59 @@ func (p *photoService) DownloadAllPhotos(dir string) error {
 		},
 	)
 
+	g := &errgroup.Group{}
 	downloadUrls := []string{}
 	includeRecordsList := util.ChunkSlice(allPhotoNames, 1000)
 	for idx, includeRecords := range includeRecordsList {
-		body := bytes.NewBuffer(util.MustMarshal(map[string]any{
-			"includeRecords": includeRecords,
-			"archiveName":    "iCloud_" + strconv.Itoa(idx) + ".zip",
-			"zoneID": map[string]any{
-				"zoneName":        "PrimarySync",
-				"ownerRecordName": "_2bafdbd84302e4f4dc838ed4f58d41dd",
-				"zoneType":        "REGULAR_CUSTOM_ZONE",
-			},
-			"pluginFields": map[string]any{
-				"originalsOnly": map[string]any{
-					"value": 1,
-					"type":  "INT64",
+		parallel <- 0
+		g.Go(func() error {
+			body := bytes.NewBuffer(util.MustMarshal(map[string]any{
+				"includeRecords": includeRecords,
+				"archiveName":    "iCloud_" + strconv.Itoa(idx) + ".zip",
+				"zoneID": map[string]any{
+					"zoneName":        "PrimarySync",
+					"ownerRecordName": "_2bafdbd84302e4f4dc838ed4f58d41dd",
+					"zoneType":        "REGULAR_CUSTOM_ZONE",
 				},
-				"codecs": map[string]any{
-					"value": []string{"HEVC", "H.264"},
-					"type":  "STRING_LIST",
+				"pluginFields": map[string]any{
+					"originalsOnly": map[string]any{
+						"value": 1,
+						"type":  "INT64",
+					},
+					"codecs": map[string]any{
+						"value": []string{"HEVC", "H.264"},
+						"type":  "STRING_LIST",
+					},
+					"itemTypes": map[string]any{
+						"value": []string{"public.heic", "public.jpeg", "public.png", "com.compuserve.gif", "com.apple.m4v-video", "com.apple.quicktime-movie", "public.mpeg-4"},
+						"type":  "STRING_LIST",
+					},
 				},
-				"itemTypes": map[string]any{
-					"value": []string{"public.heic", "public.jpeg", "public.png", "com.compuserve.gif", "com.apple.m4v-video", "com.apple.quicktime-movie", "public.mpeg-4"},
-					"type":  "STRING_LIST",
-				},
-			},
-		}))
-		headers := map[string]string{
-			"Content-Type": "text/plain;charset=UTF-8",
-			"Accept":       "*/*",
-			"Connection":   "keep-alive",
-			"Origin":       "https://www.icloud.com",
-			"Referer":      "https://www.icloud.com/",
-			"User-Agent":   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36",
-		}
+			}))
+			headers := map[string]string{
+				"Content-Type": "text/plain;charset=UTF-8",
+				"Accept":       "*/*",
+				"Connection":   "keep-alive",
+				"Origin":       "https://www.icloud.com",
+				"Referer":      "https://www.icloud.com/",
+				"User-Agent":   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36",
+			}
 
-		req := util.MustRequest(http.MethodPost, url, body, headers)
-		resp, err := util.HttpDoJSON[map[string]any](p.httpClient, req)
-		if err != nil {
-			return fmt.Errorf("failed to zip request: %w", err)
-		}
+			req := util.MustRequest(http.MethodPost, url, body, headers)
+			resp, err := util.HttpDoJSON[map[string]any](p.httpClient, req)
+			if err != nil {
+				return fmt.Errorf("failed to zip request: %w", err)
+			}
 
-		downloadUrls = append(downloadUrls, (*resp)["downloadURL"].(string))
+			downloadUrls = append(downloadUrls, (*resp)["downloadURL"].(string))
+
+			<-parallel
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return err
 	}
 
 	for _, url := range downloadUrls {

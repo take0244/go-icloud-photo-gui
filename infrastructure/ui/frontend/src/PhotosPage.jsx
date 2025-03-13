@@ -16,7 +16,11 @@ export const Photos = ({ setPage }) => {
     if (!selectedDir) return;
     setIsLoading(true);
     try {
-      await AllDownloadPhotos(selectedDir);
+      const errorMessage = await AllDownloadPhotos(selectedDir);
+      if (errorMessage) {
+        alert(errorMessage);
+        return;
+      }
       alert('完了');
     } finally {
       setIsLoading(false);

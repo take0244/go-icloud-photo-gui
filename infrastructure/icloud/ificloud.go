@@ -22,7 +22,8 @@ type (
 	}
 	ifICloudOption  func(*ifICloudOptions)
 	ifICloudOptions struct {
-		metaDir string
+		metaDir       string
+		photoParallel int
 	}
 	ifICloudConfigFile struct {
 		WebServiceSckdatabasewsUrl string
@@ -33,6 +34,11 @@ type (
 func MetaDirPathOption(cookiePath string) ifICloudOption {
 	return func(iio *ifICloudOptions) {
 		iio.metaDir = cookiePath
+	}
+}
+func PhotoDownloadParallel(cnt int) ifICloudOption {
+	return func(iio *ifICloudOptions) {
+		iio.photoParallel = cnt
 	}
 }
 
@@ -51,7 +57,7 @@ func newICloud(oauthClientId string, optArgs ...ifICloudOption) *ifICloud {
 	httpClient := util.HttpClientWithJarCookie()
 	instance := &ifICloud{
 		authService:  &authService{httpClient: httpClient, oauthClientId: oauthClientId},
-		photoService: &photoService{httpClient: httpClient},
+		photoService: &photoService{httpClient: httpClient, parallelCnt: options.photoParallel},
 		options:      options,
 		codeCh:       make(chan string, 1),
 	}

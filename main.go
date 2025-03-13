@@ -81,10 +81,10 @@ func init() {
 }
 
 func main() {
-
 	icloud := infraicloud.NewICloud(
 		config.OauthClientId,
 		infraicloud.MetaDirPathOption(appDir),
+		infraicloud.PhotoDownloadParallel(config.MaxParallel),
 	)
 
 	ucase := usecase.NewUseCase(icloud)

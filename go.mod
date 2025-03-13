@@ -6,6 +6,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966
 	github.com/wailsapp/wails/v2 v2.10.1
+	golang.org/x/sync v0.12.0
 )
 
 require (

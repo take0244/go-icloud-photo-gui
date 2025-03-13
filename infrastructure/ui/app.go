@@ -71,11 +71,13 @@ func (a *App) Code2fa(code string) string {
 	return util.MustJsonString(true)
 }
 
-func (a *App) AllDownloadPhotos(path string) {
+func (a *App) AllDownloadPhotos(path string) string {
 	if err := a.ucase.ICloudService().PhotoService().DownloadAllPhotos(path); err != nil {
 		aop.Logger().Error(err.Error())
+		return "失敗しました。"
 	} else {
 		open.Start(path)
+		return ""
 	}
 }
 
