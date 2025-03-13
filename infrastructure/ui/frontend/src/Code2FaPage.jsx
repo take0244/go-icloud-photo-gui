@@ -3,7 +3,6 @@ import { Code2fa } from "@/wailsjs/go/infraui/App";
 import { useAlert } from 'react-alert';
 
 const inputStyle = {
-  width: "100%",
   padding: "10px",
   margin: "10px 0",
   borderRadius: "8px",
@@ -48,16 +47,21 @@ export const Code2Fa = ({ setPage }) => {
   const [isLoading, setIsLoading] = useState(false);
   const alert = useAlert();
   const handleVerifyTwoFactor = () => {
+    setIsLoading(true)
     Code2fa(twoFactorCode)
       .then((res) => {
-        setIsLoading(true)
         if (JSON.parse(res)) {
           setPage("photos");
         } else {
           alert.show("認証コードが違います。やり直してね。")
           setPage("login");
         }
-      }).finally(() => {
+      })
+      .catch(() => {
+        alert.show("エラーが発生しました。ログインからやり直してください。")
+        setPage("login");
+      })
+      .finally(() => {
         setIsLoading(false);
       });
   };
@@ -70,7 +74,7 @@ export const Code2Fa = ({ setPage }) => {
           type="text"
           placeholder="認証コード"
           value={twoFactorCode}
-          onChange={(e) => setTwoFactorCode(e.target.value)}
+          onChange={(e) => setTwoFactorCode(e.target.value?.trim())}
           style={inputStyle}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
