@@ -1,7 +1,7 @@
 {
   "$schema": "https://wails.io/schemas/config.v2.json",
   "frontend:dir": "infrastructure/presentation/ui/frontend",
-  "build:dir": "infrastructure/ui/build",
+  "build:dir": "infrastructure/presentation/ui/build",
   "name": "iCloud_Photos_Downloader",
   "outputfilename": "iCloud_Photos_Downloader",
   "frontend:install": "npm install --legacy-peer-deps",

@@ -1,6 +1,7 @@
 package ifstorelocal
 
 import (
+	"context"
 	"net/http"
 	"path/filepath"
 
@@ -28,7 +29,7 @@ func NewDownloader() *downloader {
 	}
 }
 
-func (d *downloader) DownloadFileUrls(dir string, urls []usecase.FileUrl, workers int) error {
+func (d *downloader) DownloadFileUrls(ctx context.Context, dir string, urls []usecase.FileUrl, workers int) error {
 	requests := []*grab.Request{}
 	for _, url := range urls {
 		req, err := grab.NewRequest(dir, url.Url)
@@ -54,7 +55,7 @@ func (d *downloader) DownloadFileUrls(dir string, urls []usecase.FileUrl, worker
 	return nil
 }
 
-func (d *downloader) DownloadUrls(dir string, urls []string, workers int) error {
+func (d *downloader) DownloadUrls(ctx context.Context, dir string, urls []string, workers int) error {
 	requests := []usecase.FileUrl{}
 	for _, url := range urls {
 		requests = append(requests, usecase.FileUrl{
@@ -63,5 +64,5 @@ func (d *downloader) DownloadUrls(dir string, urls []string, workers int) error 
 		})
 	}
 
-	return d.DownloadFileUrls(dir, requests, workers)
+	return d.DownloadFileUrls(ctx, dir, requests, workers)
 }

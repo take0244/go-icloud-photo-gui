@@ -25,8 +25,8 @@ type (
 		Filename string
 	}
 	Downloader interface {
-		DownloadUrls(dir string, urls []string, workers int) error
-		DownloadFileUrls(dir string, urls []FileUrl, workers int) error
+		DownloadUrls(ctx context.Context, dir string, urls []string, workers int) error
+		DownloadFileUrls(ctx context.Context, dir string, urls []FileUrl, workers int) error
 	}
 )
 
@@ -84,7 +84,7 @@ func (u *useCase) DownloadAllPhotos(ctx context.Context, dir string) error {
 			Url:      photo.DownloadUrl,
 			Filename: photo.Filename,
 		})
-		u.downloader.DownloadFileUrls(dir, reqs, config.MaxParallel)
+		u.downloader.DownloadFileUrls(ctx, dir, reqs, config.MaxParallel)
 	}
 
 	for _, chunked := range util.ChunkSlice(util.ChunkSlice(photos, 1000), config.MaxParallel) {
@@ -97,7 +97,7 @@ func (u *useCase) DownloadAllPhotos(ctx context.Context, dir string) error {
 			urls = append(urls, url)
 		}
 
-		u.downloader.DownloadUrls(dir, urls, config.MaxParallel)
+		u.downloader.DownloadUrls(ctx, dir, urls, config.MaxParallel)
 	}
 
 	return nil
