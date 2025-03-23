@@ -34,7 +34,7 @@ var (
 	confCache     *ConfigFile = nil
 	defaultConfig             = ConfigFile{
 		OauthClientId: "changeit",
-		MaxParallel:   1,
+		MaxParallel:   3,
 		AppleInfo:     map[string]AppleInfo{},
 	}
 )
@@ -75,10 +75,7 @@ func InitConfig(appDir string) {
 	readmeFilePath := filepath.Join(configDir, readmeFile)
 	if _, err := os.Stat(configFilePath); os.IsNotExist(err) {
 		saveConf(defaultConfig)
-
-		if err = os.WriteFile(readmeFilePath, []byte(README), 0777); err != nil {
-			panic(err)
-		}
+		os.WriteFile(readmeFilePath, []byte(README), 0777)
 
 		fmt.Println("see", configFilePath, "change oauthClientId")
 		open.Start(appDir)
