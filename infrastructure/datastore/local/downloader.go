@@ -32,6 +32,7 @@ func (d *downloader) DownloadFileUrls(dir string, urls []usecase.FileUrl, worker
 	requests := []*grab.Request{}
 	for _, url := range urls {
 		req, err := grab.NewRequest(dir, url.Url)
+		req.NoResume = true
 		if err != nil {
 			return err
 		}
