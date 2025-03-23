@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -38,7 +39,10 @@ func (p *photoService) getPhotos(ctx context.Context, offset int64) ([]Photo, er
 	defer appctx.DeferAppTrace(ctx)
 
 	httpClient, _, appleInfo, _ := MetaData(ctx)
-	ctx = util.WithCache(ctx, true)
+
+	if os.Getenv("DEVELOPMENT") == "true" {
+		ctx = util.WithCache(ctx, true)
+	}
 
 	url := util.MustParseUrl(
 		appleInfo.WebServiceSckdatabasewsUrl+"/database/1/com.apple.photos.cloud/production/private/records/query",
