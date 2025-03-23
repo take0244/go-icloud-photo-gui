@@ -14,7 +14,7 @@ import (
 
 var isDev = os.Getenv("DEVELOPMENT") == "true"
 
-func main() {
+func init() {
 	homeDir, _ := os.UserHomeDir()
 	appDir := filepath.Join(homeDir, ".goicloudgui")
 
@@ -29,7 +29,9 @@ func main() {
 		}
 		appctx.InitLogger(file, slog.LevelInfo)
 	}
+}
 
+func main() {
 	icloud := infraicloud.NewICloud()
 	downloader := ifstorelocal.NewDownloader()
 
