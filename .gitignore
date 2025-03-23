@@ -3,3 +3,7 @@
 *.DS_Store
 /infrastructure/ui/build/bin
 /infrastructure/ui/node_modules
+/.cache
+/.vscode
+/infrastructure/presentation/ui/frontend/dist
+/infrastructure/presentation/ui/frontend/node_modules

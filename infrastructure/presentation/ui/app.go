@@ -3,11 +3,11 @@ package infraui
 import (
 	"context"
 	"embed"
-	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/skratchdot/open-golang/open"
-	"github.com/take0244/go-icloud-photo-gui/aop"
+	"github.com/take0244/go-icloud-photo-gui/appctx"
 	"github.com/take0244/go-icloud-photo-gui/usecase"
 	"github.com/take0244/go-icloud-photo-gui/util"
 	"github.com/wailsapp/wails/v2"
@@ -22,12 +22,13 @@ var assets embed.FS
 type App struct {
 	ctx   context.Context
 	ucase usecase.UseCase
+	id    string
 }
 
 func Run(ucase usecase.UseCase) error {
 	app := &App{
 		ucase: ucase,
-		ctx:   context.Background(),
+		ctx:   appctx.NewAppContext(),
 	}
 
 	err := wails.Run(&options.App{
@@ -51,11 +52,31 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 }
 
+func (a *App) before(id string) {
+	a.ctx = util.ContextChain(
+		a.ctx,
+		appctx.WithRequestId,
+		appctx.WithCacheCookies,
+		appctx.WithCacheConfig,
+	)
+	if id != "" {
+		a.id = id
+		a.ctx = appctx.WithUser(a.ctx, appctx.ContextUser{ID: id})
+	} else {
+		a.ctx = appctx.WithUser(a.ctx, appctx.ContextUser{ID: a.id})
+	}
+}
+
 func (a *App) LoginICloud(username, password string) string {
-	fmt.Println(username, password)
-	result, err := a.ucase.ICloudService().Login(username, password)
+	a.before(util.Hash(username + password))
+
+	appctx.AppTrace(a.ctx)
+	defer appctx.DeferAppTrace(a.ctx)
+	defer util.RecoverFromPanic()
+
+	result, err := a.ucase.Login(a.ctx, username, password)
 	if err != nil {
-		aop.Logger().Error(err.Error())
+		slog.ErrorContext(a.ctx, err.Error())
 		return util.MustJsonString(map[string]any{"error": true})
 	}
 
@@ -63,8 +84,14 @@ func (a *App) LoginICloud(username, password string) string {
 }
 
 func (a *App) Code2fa(code string) string {
-	if err := a.ucase.ICloudService().Code2fa(code); err != nil {
-		aop.Logger().Error(err.Error())
+	a.before("")
+
+	appctx.AppTrace(a.ctx)
+	defer appctx.DeferAppTrace(a.ctx)
+	defer util.RecoverFromPanic()
+
+	if err := a.ucase.Code2fa(a.ctx, code); err != nil {
+		slog.ErrorContext(a.ctx, err.Error())
 		return util.MustJsonString(false)
 	}
 
@@ -72,8 +99,14 @@ func (a *App) Code2fa(code string) string {
 }
 
 func (a *App) AllDownloadPhotos(path string) string {
-	if err := a.ucase.ICloudService().PhotoService().DownloadAllPhotos(path); err != nil {
-		aop.Logger().Error(err.Error())
+	a.before("")
+
+	appctx.AppTrace(a.ctx)
+	defer appctx.DeferAppTrace(a.ctx)
+	defer util.RecoverFromPanic()
+
+	if err := a.ucase.DownloadAllPhotos(a.ctx, path); err != nil {
+		slog.ErrorContext(a.ctx, err.Error())
 		return "失敗しました。"
 	} else {
 		open.Start(path)
@@ -82,6 +115,12 @@ func (a *App) AllDownloadPhotos(path string) string {
 }
 
 func (a *App) SelectDirectory() string {
+	a.before("")
+
+	appctx.AppTrace(a.ctx)
+	defer appctx.DeferAppTrace(a.ctx)
+	defer util.RecoverFromPanic()
+
 	dir, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{})
 	if err != nil {
 		panic(err)
@@ -91,6 +130,11 @@ func (a *App) SelectDirectory() string {
 }
 
 func (a *App) Cancel() {
+	a.before("")
+
+	appctx.AppTrace(a.ctx)
+	defer appctx.DeferAppTrace(a.ctx)
+	defer util.RecoverFromPanic()
+
 	os.Exit(0)
-	// a.ucase.ICloudService().Clear()
 }

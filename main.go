@@ -1,93 +1,40 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
 
-	"github.com/skratchdot/open-golang/open"
-	"github.com/take0244/go-icloud-photo-gui/aop"
-	infraicloud "github.com/take0244/go-icloud-photo-gui/infrastructure/icloud"
-	infraui "github.com/take0244/go-icloud-photo-gui/infrastructure/ui"
+	"github.com/take0244/go-icloud-photo-gui/appctx"
+	ifstorelocal "github.com/take0244/go-icloud-photo-gui/infrastructure/datastore/local"
+	infraui "github.com/take0244/go-icloud-photo-gui/infrastructure/presentation/ui"
+	infraicloud "github.com/take0244/go-icloud-photo-gui/infrastructure/repository/icloud"
 	"github.com/take0244/go-icloud-photo-gui/usecase"
-	"github.com/take0244/go-icloud-photo-gui/util"
 )
 
-type (
-	ConfigFile struct {
-		MaxParallel   int
-		OauthClientId string
-	}
-)
-
-const README = "# write app_config.json OauthClientId"
-
-var (
-	homeDir, _ = os.UserHomeDir()
-	appDir     = filepath.Join(homeDir, ".goicloudgui")
-	logFile    = filepath.Join(appDir, "log.txt")
-	configFile = filepath.Join(appDir, "app_config.json")
-	readmeFile = filepath.Join(appDir, "README.md")
-	config     ConfigFile
-)
-
-func init() {
-	if err := os.MkdirAll(appDir, 0777); err != nil {
-		panic(err)
-	}
-
-	_, err := os.Stat(configFile)
-	if os.IsNotExist(err) {
-		if err = os.WriteFile(configFile, util.MustMarshal(ConfigFile{OauthClientId: "changeit", MaxParallel: 1}), 0777); err != nil {
-			panic(err)
-		}
-
-		if err = os.WriteFile(readmeFile, []byte(README), 0777); err != nil {
-			panic(err)
-		}
-
-		fmt.Println("see", configFile, "change oauthClientId")
-		open.Start(appDir)
-		os.Exit(0)
-		return
-	}
-
-	configByts, err := os.ReadFile(configFile)
-	if err != nil {
-		panic(err)
-	}
-
-	if err = json.Unmarshal(configByts, &config); err != nil {
-		panic(err)
-
-	}
-
-	if config.OauthClientId == "changeit" || config.OauthClientId == "" {
-		fmt.Println("see", configFile, "change oauthClientId")
-		open.Start(appDir)
-		os.Exit(0)
-		return
-	}
-
-	file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0777)
-	if err != nil {
-		panic(err)
-	}
-
-	aop.InitLogger(io.Writer(file), slog.LevelError)
-}
+var isDev = os.Getenv("DEVELOPMENT") == "true"
 
 func main() {
-	icloud := infraicloud.NewICloud(
-		config.OauthClientId,
-		infraicloud.MetaDirPathOption(appDir),
-		infraicloud.PhotoDownloadParallel(config.MaxParallel),
-	)
+	homeDir, _ := os.UserHomeDir()
+	appDir := filepath.Join(homeDir, ".goicloudgui")
 
-	ucase := usecase.NewUseCase(icloud)
+	if isDev {
+		appctx.InitLogger(os.Stdout, slog.LevelInfo)
+	} else {
+		file, err := os.OpenFile(filepath.Join(appDir, "log.txt"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0777)
+		if err != nil {
+			panic(err)
+		}
+		appctx.InitLogger(file, slog.LevelInfo)
+	}
+
+	appctx.InitConfig(appDir)
+	appctx.InitCookies(appDir)
+
+	icloud := infraicloud.NewICloud()
+	downloader := ifstorelocal.NewDownloader()
+
+	ucase := usecase.NewUseCase(icloud, downloader)
 
 	if err := infraui.Run(ucase); err != nil {
 		panic(err)

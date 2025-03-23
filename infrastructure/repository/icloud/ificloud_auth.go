@@ -2,19 +2,18 @@ package infraicloud
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 
+	"github.com/take0244/go-icloud-photo-gui/appctx"
 	"github.com/take0244/go-icloud-photo-gui/util"
 )
 
 type (
-	authService struct {
-		httpClient    *http.Client
-		oauthClientId string
-	}
+	authService    struct{}
 	SigninResponse struct {
 		SessionId, SessionToken, Scnt, AccountCountry, TrustToken string
 	}
@@ -27,8 +26,14 @@ type (
 	}
 )
 
-func (a *authService) signin(clientId, username, password string) (*SigninResponse, error) {
+func (a *authService) signin(ctx context.Context, clientId, username, password string) (*SigninResponse, error) {
+	appctx.AppTrace(ctx)
+	defer appctx.DeferAppTrace(ctx)
+
+	httpClient, config, _, _ := MetaData(ctx)
+
 	req := util.MustRequest(
+		ctx,
 		http.MethodPost,
 		"https://idmsa.apple.com/appleauth/auth/signin",
 		bytes.NewBuffer(util.MustMarshal(map[string]any{
@@ -40,18 +45,19 @@ func (a *authService) signin(clientId, username, password string) (*SigninRespon
 		map[string]string{
 			"Accept":                           "*/*",
 			"Content-Type":                     "application/json",
-			"X-Apple-OAuth-Client-Id":          a.oauthClientId,
+			"X-Apple-OAuth-Client-Id":          config.OauthClientId,
 			"X-Apple-OAuth-Client-Type":        "firstPartyAuth",
 			"X-Apple-OAuth-Redirect-URI":       "https://www.icloud.com",
 			"X-Apple-OAuth-Require-Grant-Code": "true",
 			"X-Apple-OAuth-Response-Mode":      "web_message",
 			"X-Apple-OAuth-Response-Type":      "code",
 			"X-Apple-OAuth-State":              clientId,
-			"X-Apple-Widget-Key":               a.oauthClientId,
+			"X-Apple-Widget-Key":               config.OauthClientId,
+			"User-Agent":                       util.UserAgent,
 		},
 	)
 
-	resp, err := a.httpClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to signin request: %w", err)
 	}
@@ -67,7 +73,12 @@ func (a *authService) signin(clientId, username, password string) (*SigninRespon
 	}, nil
 }
 
-func (a *authService) accountLogin(signinResponse *SigninResponse, trustResponse *TrustResponse) (*AccountLoginResponse, error) {
+func (a *authService) accountLogin(ctx context.Context, signinResponse *SigninResponse, trustResponse *TrustResponse) (*AccountLoginResponse, error) {
+	appctx.AppTrace(ctx)
+	defer appctx.DeferAppTrace(ctx)
+
+	httpClient, _, _, _ := MetaData(ctx)
+
 	trustToken := func() string {
 		if trustResponse != nil {
 			return trustResponse.TrustToken
@@ -89,6 +100,7 @@ func (a *authService) accountLogin(signinResponse *SigninResponse, trustResponse
 	))
 
 	req := util.MustRequest(
+		ctx,
 		http.MethodPost,
 		"https://setup.icloud.com/setup/ws/1/accountLogin",
 		data,
@@ -98,11 +110,11 @@ func (a *authService) accountLogin(signinResponse *SigninResponse, trustResponse
 			"Connection":   "keep-alive",
 			"Origin":       "https://www.icloud.com",
 			"Referer":      "https://www.icloud.com/",
-			"User-Agent":   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36",
+			"User-Agent":   util.UserAgent,
 		},
 	)
 
-	respMap, err := util.HttpDoJSON[map[string]any](a.httpClient, req)
+	respMap, err := util.HttpDoJSON[map[string]any](httpClient, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to accountLogin request: %w", err)
 	}
@@ -113,8 +125,14 @@ func (a *authService) accountLogin(signinResponse *SigninResponse, trustResponse
 	}, nil
 }
 
-func (a *authService) login2fa(clientId, code string, signinResp *SigninResponse) error {
+func (a *authService) login2fa(ctx context.Context, clientId, code string, signinResp *SigninResponse) error {
+	appctx.AppTrace(ctx)
+	defer appctx.DeferAppTrace(ctx)
+
+	httpClient, config, _, _ := MetaData(ctx)
+
 	req := util.MustRequest(
+		ctx,
 		http.MethodPost,
 		"https://idmsa.apple.com/appleauth/auth/verify/trusteddevice/securitycode",
 		bytes.NewBuffer(util.MustMarshal(map[string]any{
@@ -125,48 +143,56 @@ func (a *authService) login2fa(clientId, code string, signinResp *SigninResponse
 		map[string]string{
 			"Accept":                           "*/*",
 			"Content-Type":                     "application/json",
-			"X-Apple-OAuth-Client-Id":          a.oauthClientId,
+			"X-Apple-OAuth-Client-Id":          config.OauthClientId,
 			"X-Apple-OAuth-Client-Type":        "firstPartyAuth",
 			"X-Apple-OAuth-Redirect-URI":       "https://www.icloud.com",
 			"X-Apple-OAuth-Require-Grant-Code": "true",
 			"X-Apple-OAuth-Response-Mode":      "web_message",
 			"X-Apple-OAuth-Response-Type":      "code",
 			"X-Apple-OAuth-State":              clientId,
-			"X-Apple-Widget-Key":               a.oauthClientId,
+			"X-Apple-Widget-Key":               config.OauthClientId,
 			"scnt":                             signinResp.Scnt,
 			"X-Apple-ID-Session-Id":            signinResp.SessionId,
+			"User-Agent":                       util.UserAgent,
 		},
 	)
 
-	if _, err := a.httpClient.Do(req); err != nil {
+	if _, err := httpClient.Do(req); err != nil {
 		return fmt.Errorf("failed to 2fa request: %w", err)
 	}
 
 	return nil
 }
 
-func (a *authService) trustSession(clientId string, signinResp *SigninResponse) (*TrustResponse, error) {
+func (a *authService) trustSession(ctx context.Context, clientId string, signinResp *SigninResponse) (*TrustResponse, error) {
+	appctx.AppTrace(ctx)
+	defer appctx.DeferAppTrace(ctx)
+
+	httpClient, config, _, _ := MetaData(ctx)
+
 	req := util.MustRequest(
+		ctx,
 		http.MethodGet,
 		"https://idmsa.apple.com/appleauth/auth/2sv/trust",
 		nil,
 		map[string]string{
 			"Accept":                           "*/*",
 			"Content-Type":                     "application/json",
-			"X-Apple-OAuth-Client-Id":          a.oauthClientId,
+			"X-Apple-OAuth-Client-Id":          config.OauthClientId,
 			"X-Apple-OAuth-Client-Type":        "firstPartyAuth",
 			"X-Apple-OAuth-Redirect-URI":       "https://www.icloud.com",
 			"X-Apple-OAuth-Require-Grant-Code": "true",
 			"X-Apple-OAuth-Response-Mode":      "web_message",
 			"X-Apple-OAuth-Response-Type":      "code",
 			"X-Apple-OAuth-State":              clientId,
-			"X-Apple-Widget-Key":               a.oauthClientId,
+			"X-Apple-Widget-Key":               config.OauthClientId,
 			"scnt":                             signinResp.Scnt,
 			"X-Apple-ID-Session-Id":            signinResp.SessionId,
+			"User-Agent":                       util.UserAgent,
 		},
 	)
 
-	resp, err := a.httpClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to trust request: %w", err)
 	}
@@ -180,8 +206,14 @@ func (a *authService) trustSession(clientId string, signinResp *SigninResponse) 
 	}, nil
 }
 
-func (a *authService) validateCookie() error {
+func (a *authService) validateCookie(ctx context.Context) error {
+	appctx.AppTrace(ctx)
+	defer appctx.DeferAppTrace(ctx)
+
+	httpClient, _, _, _ := MetaData(ctx)
+
 	req := util.MustRequest(
+		ctx,
 		http.MethodGet,
 		"https://setup.icloud.com/setup/ws/1/validate",
 		nil,
@@ -190,11 +222,11 @@ func (a *authService) validateCookie() error {
 			"Connection": "keep-alive",
 			"Origin":     "https://www.icloud.com",
 			"Referer":    "https://www.icloud.com/",
-			"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36",
+			"User-Agent": util.UserAgent,
 		},
 	)
 
-	if resp, err := a.httpClient.Do(req); err != nil {
+	if resp, err := httpClient.Do(req); err != nil {
 		return fmt.Errorf("failed to trust request: %w", err)
 	} else if !util.HttpCheck2XX(resp) {
 		return errors.New("invalid cookie")

@@ -1,6 +1,6 @@
 {
   "$schema": "https://wails.io/schemas/config.v2.json",
-  "frontend:dir": "infrastructure/ui/frontend",
+  "frontend:dir": "infrastructure/presentation/ui/frontend",
   "build:dir": "infrastructure/ui/build",
   "name": "iCloud_Photos_Downloader",
   "outputfilename": "iCloud_Photos_Downloader",
