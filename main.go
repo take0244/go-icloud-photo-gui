@@ -18,6 +18,8 @@ func main() {
 	homeDir, _ := os.UserHomeDir()
 	appDir := filepath.Join(homeDir, ".goicloudgui")
 
+	appctx.InitConfig(appDir)
+	appctx.InitCookies(appDir)
 	if isDev {
 		appctx.InitLogger(os.Stdout, slog.LevelInfo)
 	} else {
@@ -27,9 +29,6 @@ func main() {
 		}
 		appctx.InitLogger(file, slog.LevelInfo)
 	}
-
-	appctx.InitConfig(appDir)
-	appctx.InitCookies(appDir)
 
 	icloud := infraicloud.NewICloud()
 	downloader := ifstorelocal.NewDownloader()
