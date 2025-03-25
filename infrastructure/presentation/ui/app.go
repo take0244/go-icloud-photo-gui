@@ -3,17 +3,22 @@ package infraui
 import (
 	"context"
 	"embed"
+	"fmt"
 	"log/slog"
 	"os"
+	"runtime"
+	"time"
 
 	"github.com/skratchdot/open-golang/open"
 	"github.com/take0244/go-icloud-photo-gui/appctx"
 	"github.com/take0244/go-icloud-photo-gui/usecase"
 	"github.com/take0244/go-icloud-photo-gui/util"
 	"github.com/wailsapp/wails/v2"
+	"github.com/wailsapp/wails/v2/pkg/logger"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/wailsapp/wails/v2/pkg/options/mac"
+	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 //go:embed all:frontend/dist
@@ -26,20 +31,31 @@ type App struct {
 }
 
 func Run(ucase usecase.UseCase) error {
+	icon, _ := os.ReadFile("./build/appicon.png")
 	app := &App{
 		ucase: ucase,
 		ctx:   appctx.NewAppContext(),
 	}
 
 	err := wails.Run(&options.App{
-		Title:  "iCloud Photos Downloader",
-		Width:  1024 / 2,
-		Height: 768 / 2,
+		Title:    "iCloud Photos Downloader",
+		LogLevel: logger.ERROR,
+		Width:    1024 / 2,
+		Height:   768 / 2,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
 		OnStartup:        app.startup,
+		OnShutdown: func(ctx context.Context) {
+			routines := runtime.NumGoroutine()
+			slog.InfoContext(ctx, "routines", slog.Int("count", routines))
+		},
+		Mac: &mac.Options{
+			About: &mac.AboutInfo{
+				Icon: icon,
+			},
+		},
 		Bind: []any{
 			app,
 		},
@@ -72,7 +88,7 @@ func (a *App) LoginICloud(username, password string) string {
 
 	appctx.AppTrace(a.ctx)
 	defer appctx.DeferAppTrace(a.ctx)
-	defer util.RecoverFromPanic()
+	defer panicTrace(a.ctx)
 
 	result, err := a.ucase.Login(a.ctx, username, password)
 	if err != nil {
@@ -88,7 +104,7 @@ func (a *App) Code2fa(code string) string {
 
 	appctx.AppTrace(a.ctx)
 	defer appctx.DeferAppTrace(a.ctx)
-	defer util.RecoverFromPanic()
+	defer panicTrace(a.ctx)
 
 	if err := a.ucase.Code2fa(a.ctx, code); err != nil {
 		slog.ErrorContext(a.ctx, err.Error())
@@ -100,18 +116,36 @@ func (a *App) Code2fa(code string) string {
 
 func (a *App) AllDownloadPhotos(path string) string {
 	a.before("")
-
+	ticker := time.NewTicker(time.Second)
+	a.ctx = appctx.WithProgress(a.ctx)
+	p, ok := appctx.Progress(a.ctx)
 	appctx.AppTrace(a.ctx)
-	defer appctx.DeferAppTrace(a.ctx)
-	defer util.RecoverFromPanic()
+
+	defer func() {
+		panicTrace(a.ctx)
+		appctx.DeferAppTrace(a.ctx)
+		ticker.Stop()
+		p.Close()
+		wailsruntime.EventsEmit(a.ctx, "app_progressEvent", 1)
+	}()
+
+	go func() {
+		if !ok {
+			return
+		}
+		for !util.IsClosed(ticker.C) {
+			<-ticker.C
+			wailsruntime.EventsEmit(a.ctx, "app_progressEvent", p.Value())
+		}
+	}()
 
 	if err := a.ucase.DownloadAllPhotos(a.ctx, path); err != nil {
 		slog.ErrorContext(a.ctx, err.Error())
 		return "失敗しました。"
-	} else {
-		open.Start(path)
-		return ""
 	}
+
+	open.Start(path)
+	return ""
 }
 
 func (a *App) SelectDirectory() string {
@@ -119,9 +153,9 @@ func (a *App) SelectDirectory() string {
 
 	appctx.AppTrace(a.ctx)
 	defer appctx.DeferAppTrace(a.ctx)
-	defer util.RecoverFromPanic()
+	defer panicTrace(a.ctx)
 
-	dir, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{})
+	dir, err := wailsruntime.OpenDirectoryDialog(a.ctx, wailsruntime.OpenDialogOptions{})
 	if err != nil {
 		panic(err)
 	}
@@ -134,7 +168,24 @@ func (a *App) Cancel() {
 
 	appctx.AppTrace(a.ctx)
 	defer appctx.DeferAppTrace(a.ctx)
-	defer util.RecoverFromPanic()
+	defer panicTrace(a.ctx)
 
-	os.Exit(0)
+	wailsruntime.Quit(a.ctx)
+}
+
+func panicTrace(ctx context.Context) {
+	if r := recover(); r != nil {
+		buf := make([]uintptr, 10)
+		n := runtime.Callers(2, buf)
+		frames := runtime.CallersFrames(buf[:n])
+		result := ""
+		for frame, more := frames.Next(); more; frame, more = frames.Next() {
+			result += fmt.Sprintf("  - %s\n    %s:%d\n", frame.Function, frame.File, frame.Line)
+		}
+
+		slog.ErrorContext(ctx, "Panic",
+			slog.Any("🔥 Panic Recovered:", r),
+			slog.String("📌 Stack Trace:", result),
+		)
+	}
 }

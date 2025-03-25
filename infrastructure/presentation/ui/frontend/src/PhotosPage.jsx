@@ -1,9 +1,16 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { SelectDirectory, AllDownloadPhotos, Cancel } from "@/wailsjs/go/infraui/App";
 
 export const Photos = ({ setPage }) => {
   const [selectedDir, setSelectedDir] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [progress, setProgress] = useState(null);
+
+  useEffect(() => {
+    window.runtime.EventsOn("app_progressEvent", (value) => {
+      setProgress(Math.floor(value * 10000) / 100);
+    });
+  }, []);
 
   const selectDirectory = async () => {
     const dir = await SelectDirectory();
@@ -14,6 +21,7 @@ export const Photos = ({ setPage }) => {
 
   const download = async () => {
     if (!selectedDir) return;
+    setProgress(0);
     setIsLoading(true);
     try {
       const errorMessage = await AllDownloadPhotos(selectedDir);
@@ -38,6 +46,7 @@ export const Photos = ({ setPage }) => {
       color: "white",
       fontFamily: "Arial, sans-serif"
     }}>
+      
       <div style={{
         padding: "24px",
         backgroundColor: "#1e1e1e",
@@ -79,6 +88,39 @@ export const Photos = ({ setPage }) => {
             {selectedDir}
           </p>
         )}
+
+        {progress !== null && (
+          <>
+            <div style={{
+              marginTop: "12px",
+              width: "100%",
+              backgroundColor: "#333",
+              borderRadius: "8px",
+              overflow: "hidden",
+              marginBottom: "16px",
+              height: "20px",
+              position: "relative"
+            }}>
+              <div style={{
+                width: `${progress}%`,
+                backgroundColor: "#4caf50",
+                height: "100%",
+                transition: "width 0.3s ease-in-out"
+              }} />
+              <span style={{
+                position: "absolute",
+                width: "100%",
+                textAlign: "center",
+                fontSize: "12px",
+                color: "#fff",
+                fontWeight: "bold"
+              }}>
+              </span>
+            </div>
+            {progress}%
+          </>
+        )}
+
 
         <button
           style={{

@@ -67,14 +67,15 @@ const cardStyle = {
   textAlign: "center",
 };
 
-// ログイン画面
 export const Login = ({ setPage }) => {
   const alert = useAlert();
+  const [isLoading, setIsLoading] = useState(false);
   const [username, setUsername] = useStorageState("username", "");
   const [password, setPassword] = useStorageState("password", "");
   const passwordRef = React.useRef(null);
 
   const handleLogin = () => {
+    setIsLoading(true)
     LoginICloud(username, password)
       .then((response) => {
         const resp = JSON.parse(response)
@@ -90,7 +91,10 @@ export const Login = ({ setPage }) => {
 
         setPage("photos");
       })
-      .catch((error) => console.error("ログインエラー:", error));
+      .catch((error) => console.error("ログインエラー:", error))
+      .finally(() => {
+        setIsLoading(false);
+      });
   };
 
   return (
@@ -125,7 +129,12 @@ export const Login = ({ setPage }) => {
         />
         <button
           onClick={handleLogin}
-          style={buttonStyle}
+          style={{...buttonStyle,
+            backgroundColor: isLoading ? "#555" : "#007bff",
+            cursor: isLoading ? "not-allowed" : "pointer",
+            opacity: isLoading ? 0.2 : 1,
+          }}
+          disabled={isLoading}
           onMouseOver={(e) => (e.target.style.backgroundColor = "#0056b3")}
           onMouseOut={(e) => (e.target.style.backgroundColor = "#007bff")}
         >

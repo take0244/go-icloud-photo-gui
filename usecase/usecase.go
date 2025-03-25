@@ -2,6 +2,8 @@ package usecase
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 
 	"github.com/take0244/go-icloud-photo-gui/appctx"
 	"github.com/take0244/go-icloud-photo-gui/util"
@@ -25,7 +27,6 @@ type (
 		Filename string
 	}
 	Downloader interface {
-		DownloadUrls(ctx context.Context, dir string, urls []string, workers int) error
 		DownloadFileUrls(ctx context.Context, dir string, urls []FileUrl, workers int) error
 	}
 )
@@ -58,7 +59,7 @@ func (u *useCase) Login(ctx context.Context, username string, password string) (
 
 	required2fa, err := u.iCloudService.Login(ctx, username, password)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to login: %w", err)
 	}
 
 	return &LoginResult{Required2fa: required2fa}, nil
@@ -77,28 +78,38 @@ func (u *useCase) DownloadAllPhotos(ctx context.Context, dir string) error {
 
 	config := appctx.Config(ctx)
 	photos, duplicatePhotos := u.splitDuplicateCheckSum(u.iCloudService.GetAllPhotos(ctx))
-
-	reqs := []FileUrl{}
-	for _, photo := range duplicatePhotos {
-		reqs = append(reqs, FileUrl{
-			Url:      photo.DownloadUrl,
-			Filename: photo.Filename,
-		})
-		u.downloader.DownloadFileUrls(ctx, dir, reqs, config.MaxParallel)
+	chunkedPhotos := util.ChunkSlice(photos, 1000)
+	p, ok := appctx.Progress(ctx)
+	if ok {
+		p.SetTotal(float64(len(duplicatePhotos) + len(photos)))
 	}
 
-	for _, chunked := range util.ChunkSlice(util.ChunkSlice(photos, 1000), config.MaxParallel) {
-		urls := []string{}
+	slog.InfoContext(ctx, "Start Zip")
+	// 全てダウンロード
+	for i, chunked := range util.ChunkSlice(chunkedPhotos, config.MaxParallel) {
+		slog.InfoContext(ctx, "Zip Index", slog.Int("index", i))
+		requests := []FileUrl{}
 		for _, v := range chunked {
 			url, err := u.iCloudService.MakeDownloadUrlByPhotos(ctx, v)
 			if err != nil {
 				return err
 			}
-			urls = append(urls, url)
+			requests = append(requests, FileUrl{Url: url})
 		}
-
-		u.downloader.DownloadUrls(ctx, dir, urls, config.MaxParallel)
+		u.downloader.DownloadFileUrls(ctx, dir, requests, config.MaxParallel)
 	}
+
+	slog.InfoContext(ctx, "Start Duplicate")
+	// 被りをダウンロード
+	depRequests := []FileUrl{}
+	for i, photo := range duplicatePhotos {
+		slog.InfoContext(ctx, "Duplicate Index", slog.Int("index", i))
+		depRequests = append(depRequests, FileUrl{
+			Url:      photo.DownloadUrl,
+			Filename: photo.Filename,
+		})
+	}
+	u.downloader.DownloadFileUrls(ctx, dir, depRequests, config.MaxParallel)
 
 	return nil
 }

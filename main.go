@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/take0244/go-icloud-photo-gui/aop"
 	"github.com/take0244/go-icloud-photo-gui/appctx"
 	ifstorelocal "github.com/take0244/go-icloud-photo-gui/infrastructure/datastore/local"
 	infraui "github.com/take0244/go-icloud-photo-gui/infrastructure/presentation/ui"
@@ -12,15 +13,13 @@ import (
 	"github.com/take0244/go-icloud-photo-gui/usecase"
 )
 
-var isDev = os.Getenv("DEVELOPMENT") == "true"
-
 func init() {
 	homeDir, _ := os.UserHomeDir()
 	appDir := filepath.Join(homeDir, ".goicloudgui")
 
 	appctx.InitConfig(appDir)
 	appctx.InitCookies(appDir)
-	if isDev {
+	if aop.IsDebug() {
 		appctx.InitLogger(os.Stdout, slog.LevelInfo)
 	} else {
 		file, err := os.OpenFile(filepath.Join(appDir, "log.txt"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0777)

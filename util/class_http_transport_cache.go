@@ -26,8 +26,6 @@ func NewCacheTransport(child http.RoundTripper, _dir string) http.RoundTripper {
 	}
 }
 
-// var cache = NewCache(filepath.Join(os.TempDir(), ".goicloudgui"))
-
 func (t *cacheTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	ctx := req.Context()
 	if !Cache(ctx) {

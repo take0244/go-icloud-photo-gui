@@ -29,3 +29,11 @@ func Hash(x string) string {
 
 	return fmt.Sprintf("%x", hash.Sum(nil))
 }
+
+func GenerateUniqKeys(n int) []string {
+	keys := make([]string, n)
+	for i := range n {
+		keys[i] = MustUUID()
+	}
+	return keys
+}

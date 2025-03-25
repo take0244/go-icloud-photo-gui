@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/take0244/go-icloud-photo-gui/aop"
 	"github.com/take0244/go-icloud-photo-gui/appctx"
 	"github.com/take0244/go-icloud-photo-gui/usecase"
 	"github.com/take0244/go-icloud-photo-gui/util"
@@ -39,9 +40,9 @@ func (p *photoService) getPhotos(ctx context.Context, offset int64) ([]Photo, er
 
 	httpClient, _, appleInfo, _ := MetaData(ctx)
 
-	// if os.Getenv("DEVELOPMENT") == "true" {
-	// 	ctx = util.WithCache(ctx, true)
-	// }
+	if aop.IsDebug() {
+		ctx = util.WithCache(ctx, true)
+	}
 
 	url := util.MustParseUrl(
 		appleInfo.WebServiceSckdatabasewsUrl+"/database/1/com.apple.photos.cloud/production/private/records/query",

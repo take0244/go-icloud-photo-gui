@@ -2,10 +2,9 @@ package infraicloud
 
 import (
 	"net/http"
-	"os"
-	"path/filepath"
 	"sync"
 
+	"github.com/take0244/go-icloud-photo-gui/aop"
 	"github.com/take0244/go-icloud-photo-gui/util"
 )
 
@@ -53,13 +52,20 @@ func (sm *SessionManager) getSessionData(userID string) *SessionData {
 	}
 
 	if data.client == nil {
-		data.client = &http.Client{
-			Transport: util.NewLoggingTransport(
-				util.NewCacheTransport(
-					http.DefaultTransport, filepath.Join(os.TempDir(), ".goicloudgui"),
+		if aop.IsDebug() {
+			data.client = &http.Client{
+				Transport: util.NewLoggingTransport(
+					util.NewCacheTransport(
+						http.DefaultTransport, "./.cache",
+					),
 				),
-			),
-			Jar: util.NewPersistentCookieJar(),
+				Jar: util.NewPersistentCookieJar(),
+			}
+		} else {
+			data.client = &http.Client{
+				Transport: util.NewLoggingTransport(http.DefaultTransport),
+				Jar:       util.NewPersistentCookieJar(),
+			}
 		}
 	}
 
