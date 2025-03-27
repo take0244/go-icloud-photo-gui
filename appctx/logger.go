@@ -8,10 +8,8 @@ import (
 	"runtime"
 )
 
-var logger *slog.Logger
-
 func InitLogger(writer io.Writer, level slog.Leveler) *slog.Logger {
-	logger = slog.New(&customHandler{
+	logger := slog.New(&customHandler{
 		Handler: slog.NewTextHandler(
 			writer,
 			&slog.HandlerOptions{Level: level},
