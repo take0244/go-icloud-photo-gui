@@ -141,6 +141,7 @@ func (p *photoService) getPhotos(ctx context.Context, offset int64) ([]Photo, er
 func (p *photoService) getAllPhotos(ctx context.Context) []Photo {
 	appctx.AppTrace(ctx)
 	defer appctx.DeferAppTrace(ctx)
+	progress, ok := appctx.Progress(ctx)
 
 	var (
 		allPhotos []Photo
@@ -158,6 +159,9 @@ func (p *photoService) getAllPhotos(ctx context.Context) []Photo {
 		}
 
 		allPhotos = append(allPhotos, photos...)
+		if ok {
+			progress.Count("photos_count", float64(len(allPhotos)))
+		}
 
 		offset += int64(len(photos))
 	}
@@ -170,19 +174,13 @@ func (p *photoService) GetAllPhotos(ctx context.Context) []usecase.Photo {
 
 	var result []usecase.Photo
 	for _, p := range p.getAllPhotos(ctx) {
-		filenameBase64 := p.MasterFields["filenameEnc"].(map[string]any)["value"].(string)
-		decodedBytes, err := base64.StdEncoding.DecodeString(filenameBase64)
+		v, err := cnvPhoto(p)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error()+p.RecordName)
 			continue
 		}
 
-		result = append(result, usecase.Photo{
-			ID:          p.RecordName,
-			CheckSum:    p.MasterFields["resOriginalRes"].(map[string]any)["value"].(map[string]any)["fileChecksum"].(string),
-			DownloadUrl: p.MasterFields["resOriginalRes"].(map[string]any)["value"].(map[string]any)["downloadURL"].(string),
-			Filename:    string(decodedBytes),
-		})
+		result = append(result, v)
 	}
 
 	return result
@@ -244,4 +242,23 @@ func (p *photoService) MakeDownloadUrlByPhotos(ctx context.Context, photos []use
 	}
 
 	return (*resp)["downloadURL"].(string), nil
+}
+
+func cnvPhoto(photo Photo) (usecase.Photo, error) {
+	filenameBase64 := photo.MasterFields["filenameEnc"].(map[string]any)["value"].(string)
+	decodedBytes, err := base64.StdEncoding.DecodeString(filenameBase64)
+	if err != nil {
+		return usecase.Photo{}, err
+	}
+
+	resOriginalRes := photo.MasterFields["resOriginalRes"].(map[string]any)
+	resOriginalResValue := resOriginalRes["value"].(map[string]any)
+	fileSize, _ := resOriginalResValue["size"].(float64)
+	return usecase.Photo{
+		ID:          photo.RecordName,
+		CheckSum:    resOriginalResValue["fileChecksum"].(string),
+		DownloadUrl: resOriginalResValue["downloadURL"].(string),
+		Filename:    string(decodedBytes),
+		FileSize:    fileSize,
+	}, nil
 }

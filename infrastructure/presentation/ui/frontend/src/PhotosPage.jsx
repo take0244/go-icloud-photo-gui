@@ -1,14 +1,19 @@
 import { useState, useEffect } from "react";
 import { SelectDirectory, AllDownloadPhotos, Cancel } from "@/wailsjs/go/infraui/App";
+import { useAlert } from 'react-alert';
 
 export const Photos = ({ setPage }) => {
   const [selectedDir, setSelectedDir] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(null);
+  const [phase, setPhase] = useState("");
+  const alert = useAlert();
 
   useEffect(() => {
     window.runtime.EventsOn("app_progressEvent", (value) => {
-      setProgress(Math.floor(value * 10000) / 100);
+      const progress = JSON.parse(value);
+      setProgress(Math.floor(progress.value * 10000) / 100);
+      setPhase(progress.phase);
     });
   }, []);
 
@@ -26,10 +31,10 @@ export const Photos = ({ setPage }) => {
     try {
       const errorMessage = await AllDownloadPhotos(selectedDir);
       if (errorMessage) {
-        alert(errorMessage);
+        alert.error(errorMessage);
         return;
       }
-      alert('完了');
+      alert.info('完了');
     } finally {
       setIsLoading(false);
     }
@@ -88,8 +93,13 @@ export const Photos = ({ setPage }) => {
             {selectedDir}
           </p>
         )}
-
-        {progress !== null && (
+        {phase === 'CHECK_FILES' && (
+          <div>
+            <p>ICloudのファイルを確認しています...</p>
+            <p>ファイル数: {progress/100}</p>
+          </div>
+        )}
+        {['DOWNLOAD_DUPLICATE', 'DOWNLOAD_ZIP'].includes(phase) && (
           <>
             <div style={{
               marginTop: "12px",
@@ -117,6 +127,7 @@ export const Photos = ({ setPage }) => {
               }}>
               </span>
             </div>
+            <p>phase: {phase}</p>
             {progress}%
           </>
         )}

@@ -118,30 +118,32 @@ func (a *App) AllDownloadPhotos(path string) string {
 	a.before("")
 	ticker := time.NewTicker(time.Second)
 	a.ctx = appctx.WithProgress(a.ctx)
-	p, ok := appctx.Progress(a.ctx)
 	appctx.AppTrace(a.ctx)
+	p, ok := appctx.Progress(a.ctx)
 
 	defer func() {
 		panicTrace(a.ctx)
+		p.Close()
 		appctx.DeferAppTrace(a.ctx)
 		ticker.Stop()
-		p.Close()
 		wailsruntime.EventsEmit(a.ctx, "app_progressEvent", 1)
 	}()
 
-	go func() {
-		if !ok {
-			return
-		}
-		for !util.IsClosed(ticker.C) {
-			<-ticker.C
-			wailsruntime.EventsEmit(a.ctx, "app_progressEvent", p.Value())
-		}
-	}()
+	if ok {
+		valueCh := p.Value()
+		go func() {
+			for v := range valueCh {
+				wailsruntime.EventsEmit(a.ctx, "app_progressEvent", util.MustJsonString(map[string]any{
+					"value": v,
+					"phase": p.Phase(),
+				}))
+			}
+		}()
+	}
 
 	if err := a.ucase.DownloadAllPhotos(a.ctx, path); err != nil {
 		slog.ErrorContext(a.ctx, err.Error())
-		return "失敗しました。"
+		return "失敗しました。(" + err.Error() + ")"
 	}
 
 	open.Start(path)

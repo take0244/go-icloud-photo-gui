@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
 	"path/filepath"
 	"time"
@@ -34,12 +35,76 @@ func NewDownloader() *downloader {
 }
 
 func (d *downloader) DownloadFileUrls(ctx context.Context, dir string, urls []usecase.FileUrl, workers int) error {
+	requests, err := d.cnvGrabRequest(dir, urls)
+	if err != nil {
+		return err
+	}
+	progressIds := util.GenerateUniqKeys(len(requests))
+	respch := d.client.DoBatch(workers, requests...)
+
+	p, ok := appctx.Progress(ctx)
+	if !ok {
+		for resp := range respch {
+			if err := resp.Err(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	t := time.NewTicker(100 * time.Millisecond)
+	defer t.Stop()
+	responses := []*grab.Response{}
+	countNil := func() int {
+		var count = 0
+		for _, r := range responses {
+			if r == nil {
+				count++
+			}
+		}
+		return count
+	}
+
+	for countNil() < len(requests) {
+		select {
+		case resp := <-respch:
+			if resp != nil {
+				slog.InfoContext(ctx, "Loaded Response", slog.String("filename", resp.Filename))
+				responses = append(responses, resp)
+			}
+		case <-t.C:
+			for i, resp := range responses {
+				if resp == nil {
+					continue
+				}
+				select {
+				case <-resp.Done:
+					if err := resp.Err(); err != nil {
+						return fmt.Errorf("grab download error: %w", err)
+					}
+					responses[i] = nil
+					p.Count(progressIds[i], 1)
+				default:
+					fileProgress := float64(0)
+					if urls[i].FileSize != 0 {
+						fileProgress = math.Min(float64(resp.BytesComplete())/(urls[i].FileSize*0.95), 0.999999)
+					}
+					p.Count(progressIds[i], math.Max(fileProgress, resp.Progress()))
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func (d downloader) cnvGrabRequest(dir string, files []usecase.FileUrl) ([]*grab.Request, error) {
 	requests := []*grab.Request{}
-	for _, url := range urls {
+	for _, url := range files {
 		req, err := grab.NewRequest(dir, url.Url)
 		req.NoResume = true
 		if err != nil {
-			return fmt.Errorf("missing request grab%w", err)
+			return nil, fmt.Errorf("missing request grab%w", err)
 		}
 
 		if url.Filename != "" {
@@ -49,63 +114,5 @@ func (d *downloader) DownloadFileUrls(ctx context.Context, dir string, urls []us
 		requests = append(requests, req)
 	}
 
-	progressIds := util.GenerateUniqKeys(len(requests))
-	respch := d.client.DoBatch(workers, requests...)
-	p, ok := appctx.Progress(ctx)
-	if ok {
-		t := time.NewTicker(100 * time.Millisecond)
-		t2 := time.NewTicker(2 * time.Second)
-		defer t.Stop()
-		defer t2.Stop()
-		responses := []*grab.Response{}
-		countNil := func() int {
-			var count = 0
-			for _, r := range responses {
-				if r == nil {
-					count++
-				}
-			}
-			return count
-		}
-
-		for countNil() < len(requests) {
-			select {
-			case resp := <-respch:
-				if resp != nil {
-					responses = append(responses, resp)
-				}
-			case <-t2.C:
-				slog.InfoContext(ctx, "countNil", slog.Int("cnt", countNil()), slog.Int("requests.len", len(requests)))
-			case <-t.C:
-				for i, resp := range responses {
-					if resp == nil {
-						p.Count(progressIds[i], 1)
-						continue
-					}
-					if !resp.IsComplete() {
-						fmt.Println(resp.Size())
-						fmt.Println(resp.Bytes())
-						fmt.Println(resp.BytesComplete())
-						fmt.Println(resp.BytesPerSecond())
-						p.Count(progressIds[i], resp.Progress())
-						continue
-					}
-					if err := resp.Err(); err != nil {
-						return fmt.Errorf("grab download error: %w", err)
-					}
-
-					responses[i] = nil
-					p.Count(progressIds[i], 1)
-				}
-			}
-		}
-	} else {
-		for resp := range respch {
-			if err := resp.Err(); err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
+	return requests, nil
 }

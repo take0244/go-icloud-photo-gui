@@ -2,8 +2,10 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"runtime"
 
 	"github.com/take0244/go-icloud-photo-gui/appctx"
 	"github.com/take0244/go-icloud-photo-gui/util"
@@ -15,6 +17,7 @@ type (
 		CheckSum    string
 		DownloadUrl string
 		Filename    string
+		FileSize    float64
 	}
 	ICloudService interface {
 		Login(ctx context.Context, username, password string) (bool, error)
@@ -25,6 +28,7 @@ type (
 	FileUrl struct {
 		Url      string
 		Filename string
+		FileSize float64
 	}
 	Downloader interface {
 		DownloadFileUrls(ctx context.Context, dir string, urls []FileUrl, workers int) error
@@ -72,20 +76,58 @@ func (u *useCase) Code2fa(ctx context.Context, code string) error {
 	return u.iCloudService.Code2fa(ctx, code)
 }
 
-func (u *useCase) DownloadAllPhotos(ctx context.Context, dir string) error {
+func (u *useCase) DownloadAllPhotos(ctx context.Context, dir string) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			buf := make([]uintptr, 10)
+			n := runtime.Callers(2, buf)
+			frames := runtime.CallersFrames(buf[:n])
+			result := ""
+			for frame, more := frames.Next(); more; frame, more = frames.Next() {
+				result += fmt.Sprintf("  - %s\n    %s:%d\n", frame.Function, frame.File, frame.Line)
+			}
+
+			slog.ErrorContext(ctx, "Panic",
+				slog.Any("🔥 Panic Recovered:", r),
+				slog.String("📌 Stack Trace:", result),
+			)
+			err = errors.New(result)
+		}
+	}()
 	appctx.AppTrace(ctx)
 	defer appctx.DeferAppTrace(ctx)
-
+	p, okProgress := appctx.Progress(ctx)
 	config := appctx.Config(ctx)
+
+	if okProgress {
+		p.SetPhase("CHECK_FILES", 1)
+	}
 	photos, duplicatePhotos := u.splitDuplicateCheckSum(u.iCloudService.GetAllPhotos(ctx))
 	chunkedPhotos := util.ChunkSlice(photos, 1000)
-	p, ok := appctx.Progress(ctx)
-	if ok {
-		p.SetTotal(float64(len(duplicatePhotos) + len(photos)))
+
+	// 被りをダウンロード
+	if okProgress {
+		p.SetPhase("DOWNLOAD_DUPLICATE", float64(len(duplicatePhotos)))
+	}
+	slog.InfoContext(ctx, "Start Duplicate")
+	depRequests := []FileUrl{}
+	for i, photo := range duplicatePhotos {
+		slog.InfoContext(ctx, "Duplicate Index", slog.Int("index", i))
+		depRequests = append(depRequests, FileUrl{
+			Url:      photo.DownloadUrl,
+			Filename: photo.Filename,
+			FileSize: photo.FileSize,
+		})
+	}
+	if err := u.downloader.DownloadFileUrls(ctx, dir, depRequests, config.MaxParallel); err != nil {
+		return err
 	}
 
-	slog.InfoContext(ctx, "Start Zip")
 	// 全てダウンロード
+	if okProgress {
+		p.SetPhase("DOWNLOAD_ZIP", float64(len(chunkedPhotos)))
+	}
+	slog.InfoContext(ctx, "Start Zip")
 	for i, chunked := range util.ChunkSlice(chunkedPhotos, config.MaxParallel) {
 		slog.InfoContext(ctx, "Zip Index", slog.Int("index", i))
 		requests := []FileUrl{}
@@ -94,22 +136,18 @@ func (u *useCase) DownloadAllPhotos(ctx context.Context, dir string) error {
 			if err != nil {
 				return err
 			}
-			requests = append(requests, FileUrl{Url: url})
-		}
-		u.downloader.DownloadFileUrls(ctx, dir, requests, config.MaxParallel)
-	}
 
-	slog.InfoContext(ctx, "Start Duplicate")
-	// 被りをダウンロード
-	depRequests := []FileUrl{}
-	for i, photo := range duplicatePhotos {
-		slog.InfoContext(ctx, "Duplicate Index", slog.Int("index", i))
-		depRequests = append(depRequests, FileUrl{
-			Url:      photo.DownloadUrl,
-			Filename: photo.Filename,
-		})
+			req := FileUrl{Url: url, FileSize: 0}
+			for _, fs := range v {
+				req.FileSize += fs.FileSize
+			}
+			requests = append(requests, req)
+
+		}
+		if err := u.downloader.DownloadFileUrls(ctx, dir, requests, config.MaxParallel); err != nil {
+			return err
+		}
 	}
-	u.downloader.DownloadFileUrls(ctx, dir, depRequests, config.MaxParallel)
 
 	return nil
 }
