@@ -7,14 +7,16 @@ import (
 	"log/slog"
 	"os"
 	"runtime"
+	"strconv"
 	"time"
 
 	"github.com/skratchdot/open-golang/open"
 	"github.com/take0244/go-icloud-photo-gui/appctx"
 	"github.com/take0244/go-icloud-photo-gui/usecase"
 	"github.com/take0244/go-icloud-photo-gui/util"
-	"github.com/wailsapp/wails/v2"
+	"github.com/wailsapp/wails/v2/pkg/application"
 	"github.com/wailsapp/wails/v2/pkg/logger"
+	"github.com/wailsapp/wails/v2/pkg/menu"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
@@ -24,51 +26,71 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
-type App struct {
+type app struct {
 	ctx   context.Context
 	ucase usecase.UseCase
 	id    string
 }
 
-func Run(ucase usecase.UseCase) error {
-	icon, _ := os.ReadFile("./build/appicon.png")
-	app := &App{
+func NewApp(ucase usecase.UseCase) *app {
+	return &app{
 		ucase: ucase,
 		ctx:   appctx.NewAppContext(),
 	}
+}
 
-	err := wails.Run(&options.App{
-		Title:    "iCloud Photos Downloader",
-		LogLevel: logger.ERROR,
-		Width:    1024 / 2,
-		Height:   768 / 2,
-		AssetServer: &assetserver.Options{
-			Assets: assets,
-		},
+func (a *app) attachMenu(wailsApp *application.Application) {
+	config := appctx.Config(a.ctx)
+	appMenu := menu.NewMenu()
+
+	appMenu.Append(menu.AppMenu())
+
+	appMenu.Append(menu.EditMenu())
+
+	settingMenu := appMenu.AddSubmenu("ParallelCount")
+	for i := range 8 {
+		c := i + 1
+		settingMenu.AddRadio(strconv.Itoa(c), config.MaxParallel == c, nil, func(cd *menu.CallbackData) {
+			for j, item := range settingMenu.Items {
+				_c := j + 1
+				if c == _c {
+					appctx.PeekConfig(a.ctx, func(cf *appctx.ConfigFile) { cf.MaxParallel = _c })
+				}
+				item.SetChecked(c == _c)
+			}
+			wailsApp.SetApplicationMenu(appMenu)
+		})
+	}
+
+	wailsApp.SetApplicationMenu(appMenu)
+}
+
+func (a *app) Run() error {
+	icon, _ := os.ReadFile("./build/appicon.png")
+	myapp := application.NewWithOptions(&options.App{
+		Title:            "iCloud Photos Downloader",
+		LogLevel:         logger.ERROR,
+		Width:            1024 / 2,
+		Height:           768 / 2,
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
-		OnStartup:        app.startup,
+		AssetServer:      &assetserver.Options{Assets: assets},
+		Mac:              &mac.Options{About: &mac.AboutInfo{Icon: icon}},
+		Bind:             []any{a},
+		OnStartup: func(ctx context.Context) {
+			a.ctx = ctx
+		},
 		OnShutdown: func(ctx context.Context) {
 			routines := runtime.NumGoroutine()
 			slog.InfoContext(ctx, "routines", slog.Int("count", routines))
 		},
-		Mac: &mac.Options{
-			About: &mac.AboutInfo{
-				Icon: icon,
-			},
-		},
-		Bind: []any{
-			app,
-		},
 	})
 
-	return err
+	a.attachMenu(myapp)
+
+	return myapp.Run()
 }
 
-func (a *App) startup(ctx context.Context) {
-	a.ctx = ctx
-}
-
-func (a *App) before(id string) {
+func (a *app) before(id string) {
 	a.ctx = util.ContextChain(
 		a.ctx,
 		appctx.WithRequestId,
@@ -83,7 +105,7 @@ func (a *App) before(id string) {
 	}
 }
 
-func (a *App) LoginICloud(username, password string) string {
+func (a *app) LoginICloud(username, password string) string {
 	a.before(util.Hash(username + password))
 
 	appctx.AppTrace(a.ctx)
@@ -99,7 +121,7 @@ func (a *App) LoginICloud(username, password string) string {
 	return util.MustJsonString(result)
 }
 
-func (a *App) Code2fa(code string) string {
+func (a *app) Code2fa(code string) string {
 	a.before("")
 
 	appctx.AppTrace(a.ctx)
@@ -114,7 +136,7 @@ func (a *App) Code2fa(code string) string {
 	return util.MustJsonString(true)
 }
 
-func (a *App) AllDownloadPhotos(path string) string {
+func (a *app) AllDownloadPhotos(path string) string {
 	a.before("")
 	ticker := time.NewTicker(time.Second)
 	a.ctx = appctx.WithProgress(a.ctx)
@@ -150,7 +172,7 @@ func (a *App) AllDownloadPhotos(path string) string {
 	return ""
 }
 
-func (a *App) SelectDirectory() string {
+func (a *app) SelectDirectory() string {
 	a.before("")
 
 	appctx.AppTrace(a.ctx)
@@ -165,7 +187,7 @@ func (a *App) SelectDirectory() string {
 	return dir
 }
 
-func (a *App) Cancel() {
+func (a *app) Cancel() {
 	a.before("")
 
 	appctx.AppTrace(a.ctx)

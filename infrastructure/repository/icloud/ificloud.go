@@ -50,7 +50,7 @@ func (i *ifICloud) Login(ctx context.Context, appleId, password string) (bool, e
 
 	sessionManager.setSigninResponse(user.ID, signinResp)
 
-	appctx.CacheConfig(func(conf *appctx.ConfigFile) {
+	appctx.PeekConfig(ctx, func(conf *appctx.ConfigFile) {
 		conf.AppleInfo[user.ID] = appctx.AppleInfo{
 			AppleId:                    appleId,
 			WebServiceSckdatabasewsUrl: accountResp.WebServiceSckdatabasewsUrl,

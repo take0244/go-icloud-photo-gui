@@ -36,7 +36,9 @@ func main() {
 
 	ucase := usecase.NewUseCase(icloud, downloader)
 
-	if err := infraui.Run(ucase); err != nil {
+	app := infraui.NewApp(ucase)
+
+	if err := app.Run(); err != nil {
 		panic(err)
 	}
 }

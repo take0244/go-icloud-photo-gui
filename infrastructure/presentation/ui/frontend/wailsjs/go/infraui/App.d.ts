@@ -9,4 +9,6 @@ export function Code2fa(arg1:string):Promise<string>;
 
 export function LoginICloud(arg1:string,arg2:string):Promise<string>;
 
+export function Run():Promise<void>;
+
 export function SelectDirectory():Promise<string>;
